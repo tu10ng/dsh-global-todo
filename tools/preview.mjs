@@ -778,10 +778,8 @@ function checkRenderedPanel(html, detail, select) {
   expect(html.includes('gt-chip-ok'), 'the running-session badge lost its colour')
   expect(html.includes('会话在跑'), 'the running-session badge label is missing')
   expect(html.includes('紧急'), 'the urgent label is missing')
-  // Progress notes and dead attachments are user-facing facts, so they are asserted
-  // rather than assumed to render. The row shows the count; the detail — which only
-  // exists for the open row — carries the trail.
-  expect(html.includes('2 条进展'), 'the row does not show how many notes there are')
+  // Dead attachments are a user-facing fact on the row; the notes count lives in
+  // the detail, which only exists for the open row.
   expect(html.includes('文件不在了'), 'a missing attachment is not flagged on the row')
   expect(html.includes('is:overdue'), 'the search syntax hint is missing')
   expect(detail.includes('进展记录'), 'the notes section is missing from the detail')
@@ -841,9 +839,7 @@ function checkRenderedPanel(html, detail, select) {
   expect(/\.gt-root\s*\{[^}]*overflow:\s*hidden/.test(css), 'the panel no longer clips its own overflow')
   expect(/\.gt-inner\s*\{[^}]*min-height:\s*0/.test(css), 'the column can grow past the slot again (no min-height: 0)')
   expect(/\.gt-groups\s*\{[^}]*overflow:\s*auto/.test(css), 'the list is no longer the scroll owner')
-  // The plan is visible in two places on purpose: progress without opening the row, and the
-  // ticks themselves in the detail.
-  expect(html.includes('步骤 2/4'), 'the row does not show plan progress')
+  // The plan's ticks live in the detail; the row is the title and its exceptions.
   expect(html.includes('gt-step'), 'the detail does not render the steps')
   // Grouping must not smuggle raw colours in: theme tokens only.
   expect(/rgb\(|#[0-9a-fA-F]{3,6}\b/.test(html.replace(/<style>[\s\S]*?<\/style>/, '')) === false, 'a literal colour leaked into the markup')
@@ -872,14 +868,13 @@ function checkMobileRender(mobile) {
   // markup has to keep each one the CSS hides or shrinks.
   expect(list.includes('class="gt-btn-label"'), 'the hand-off label is not wrapped, so it cannot collapse to its icon')
   expect(/class="gt-btn gt-btn-quiet gt-dispatch"[\s\S]{0,240}?aria-label=/.test(list), 'the icon-only hand-off button has no accessible name')
-  expect(list.includes('gt-meta-by'), 'the creator attribution has no removable class')
+  expect(list.includes('gt-item-title-text'), 'the row title has no removable wrapper for its flags')
   expect(list.includes('gt-chip-dir'), 'the directory chip has no removable class')
   // Touch: the controls a thumb has to hit are 44px, and the density styles that were
   // right for a mouse are switched off rather than left on with smaller type.
   expect(/\[data-mobile="1"\][^{]*\{[^}]*min-height:\s*44px/.test(css), 'no 44px touch target for mobile controls')
   expect(/\[data-mobile="1"\][^{]*\.gt-kbd\s*\{[^}]*display:\s*none/.test(css), 'the keyboard hint is still shown on a phone')
   expect(/\[data-mobile="1"\][^{]*\.gt-btn-label\s*\{[^}]*display:\s*none/.test(css), 'the hand-off label does not collapse on a phone')
-  expect(/\[data-mobile="1"\][^{]*\.gt-meta-by\s*\{[^}]*display:\s*none/.test(css), 'the creator attribution is still shown on a phone')
   expect(/\[data-mobile="1"\][^{]*\.gt-tabs[^{]*\{[^}]*overflow-x:\s*auto/.test(css), 'the filter chips do not scroll sideways, so their tail is unreachable')
   // The phone shell reserves a home indicator area; the panel is its own scroll container,
   // so it has to respect the inset itself.

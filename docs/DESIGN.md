@@ -254,10 +254,9 @@ What changes below 600px, and why each item is not cosmetic:
   because the strip was `nowrap` inside a wrapping row. `overflow-x: auto` on a single row keeps
   every filter reachable, and the toolbar becomes one column so the search field can be full width.
 - **The row's hand-off collapses to its icon.** The label inside `.gt-actions` was taking ~140px
-  of a ~340px card, which pushed every meta item onto its own line — the row grew to ~250px for
-  four facts. With the icon the body keeps ~220px, meta packs two or three per line, and the
-  creator attribution (`.gt-meta-by`), the least actionable item, steps out of the row and stays
-  in the detail.
+  of a ~340px card, which squeezed the title. With the icon the body keeps ~220px. (The row's
+  descriptive meta line is gone entirely — desktop and phone — since 0.20.0: the row is the
+  title and its exception flags, everything descriptive lives in the detail.)
 - **Desktop-only affordances disappear rather than shrink.** The `/` hint and the keyboard table
   keycaps are noise without a keyboard; the working-directory path moves into 上下文, which is
   where its full value already lived.
@@ -272,7 +271,7 @@ What changes below 600px, and why each item is not cosmetic:
 This is one detail implementation, still: the inline detail is what a phone gets (there is no
 room for a 348px card below 960), and every rule is CSS over the same markup except three stable
 hooks — `data-mobile`, the wrapped `.gt-btn-label` (so the label can collapse), and the
-`.gt-meta-by` / `.gt-chip-dir` classes (so CSS can hide a fact without JS deciding per row).
+`.gt-chip-dir` class (so CSS can hide a fact without JS deciding per row).
 The settings dialog is the one place layout is chosen in JS: below 600px it is anchored to both
 edges with the measured top kept, because a fixed 360px card in a 390px viewport clipped both
 sides.

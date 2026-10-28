@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+- **The row is the title and its exceptions.** The descriptive meta line under every todo is
+  gone — the number, the age, the creator, the tags, the note and step counts, the completion
+  time and the session state now live only in the detail, where they answer a question instead
+  of competing for it. What stays on the row is what asks for a decision, as small inline
+  flags: 逾期 / 今天到期, P0–P1, 待确认, 派发失败, and a live session with no working directory.
 - **The split is yours to set.** Collapsed, the dock is one input row and the list owns the
   column; stepping into the conversation, sending a line, or dragging the grip raises the
   view (62%, or the pixel height you pinned — remembered per browser, clamped so the list
