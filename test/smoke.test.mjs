@@ -11,7 +11,7 @@
  */
 
 import { strict as assert } from 'node:assert'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -241,7 +241,7 @@ test('the plugin mounts, registers its surfaces, and survives a full round trip'
 
     // Surfaces
     assert.equal(host.state.tools.size, 10, 'all ten tools must register')
-    assert.equal(host.state.routes.size, 26, 'all twenty-six routes must register')
+    assert.equal(host.state.routes.size, 29, 'all twenty-nine routes must register')
     assert.equal(host.state.promptSections.length, 1)
     assert.equal(host.state.promptSections[0].name, 'dsh-global-todo:guidance')
     assert.ok(host.state.warnings.length === 0, `no warnings expected, got: ${host.state.warnings.join('; ')}`)
@@ -826,7 +826,7 @@ test('a broken tools surface does not stop the web surface from mounting', async
     }
     assert.doesNotThrow(() => apply(host.ctx, { storePath: path.join(dir, 'todos.json') }))
     assert.ok(host.state.warnings.some((line) => line.includes('工具注册失败')))
-    assert.equal(host.state.routes.size, 26, 'routes are independent of the tool registry')
+    assert.equal(host.state.routes.size, 29, 'routes are independent of the tool registry')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -849,6 +849,42 @@ test('the store path from config is honoured, and the default is $DSH_HOME', asy
     assert.equal(res.statusCode, 200)
     const written = JSON.parse(await readFile(custom, 'utf8'))
     assert.equal(written.todos.length, 1)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('a line typed into the butler chat does not move the current conversation', async () => {
+  // The embedded butler conversation sends through the Host's own composer, so
+  // those lines are REAL user messages (source.kind 'user'). Without the butler
+  // exemption every one of them would drag the dispatch default into the butler —
+  // the same self-steering the plugin-injection guard above exists to prevent.
+  const dir = await mkdtemp(path.join(tmpdir(), 'gt-smoke-butler-'))
+  try {
+    // The sidecar names the butler session; it is read asynchronously on mount,
+    // so the test gives it the same beat chat.test.mjs does.
+    await writeFile(path.join(dir, 'chat-session.json'), JSON.stringify({ id: 'session-butler', at: 1 }), 'utf8')
+    const host = makeHost({ tools: {}, webServer: {} })
+    apply(host.ctx, { storePath: path.join(dir, 'todos.json'), requireExistingFiles: false })
+    await new Promise((resolve) => setTimeout(resolve, 25))
+
+    const session = (id) => ({ id, header: { id } })
+    const userMessage = (kind) => ({ type: 'user/message', seq: 1, data: { source: { kind } } })
+
+    host.emit('session/event', session('session-person'), userMessage('user'))
+    host.emit('session/event', session('session-butler'), userMessage('user'))
+    host.emit('session/event', session('session-butler'), {
+      type: 'assistant/message',
+      seq: 2,
+      data: { message: { content: [{ type: 'text', text: '管家在处理' }] } },
+    })
+
+    const healthRoute = host.state.routes.get('/api/global-todo/health')
+    const healthRes = makeRes()
+    await healthRoute.handler(makeReq({ url: '/api/global-todo/health' }), healthRes)
+    const payload = JSON.parse(healthRes.body)
+    assert.equal(payload.data.target.recentSessionId, 'session-person')
+    assert.equal(payload.data.chat.hasSession, true, 'the sidecar was loaded and reported')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

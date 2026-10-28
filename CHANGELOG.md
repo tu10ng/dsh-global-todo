@@ -1,5 +1,37 @@
 ## [Unreleased]
 
+- **The split is yours to set.** Collapsed, the dock is one input row and the list owns the
+  column; stepping into the conversation, sending a line, or dragging the grip raises the
+  view (62%, or the pixel height you pinned — remembered per browser, clamped so the list
+  never drops below 180px); clicking the list folds it back. Double-click or Enter on the
+  grip resets the pin, and it answers ArrowUp/ArrowDown from the keyboard. The list stays on
+  screen in every state — a fold, not a mode.
+- **The panel is a permanent split: list above, butler below.** The expand/collapse tour of
+  modes is gone — the dock holds a fixed share of the panel's foot (42%, clamped), the list
+  keeps the rest, and both are always on screen. The first line still travels this plugin's
+  own input until the session exists, after which the dock is the embedded conversation and
+  the plugin's input stands down (never two composers).
+- **The butler's room is the Host's own conversation.** Once the butler has heard its first
+  line, the unfolded chat embeds the Host's `conversation.content` factory (`variant:
+  'embedded'`, the subagent sidebar-chat channel): streaming, the real composer with its model
+  picker, and native tool cards for `global_todo_*` calls. The hand-rolled room becomes the
+  fallback (a factory name has no version promise — degrade, never break), and the quick input
+  stands down while the embed is up so there is never a double composer. Because embedded
+  lines are real user messages, the butler session is now exempt from the recent-conversation
+  tracker as well as auto-collect: typing to the butler must not drag the dispatch default
+  into it. The butler uses the Host's global default model and follows it on every restart.
+- **The todo butler: a chat in the panel that edits the list for you.** A composer at the
+  panel's foot talks to one persistent agent session (`lib/chat.js`): your lines on the right,
+  the butler's replies on the left, one-line zh tool traces between them ("修改了 #12：优先级→P1
+  高"), and the list refreshes when the trace grows. The session is created through `ctx.root`
+  (the application owns it), mounts the plugin's own **empty preset** — the ten todo tools and
+  nothing else; the Host's `minimal` ships a shell, so it is not used — with a cwd that can be
+  configured but never to the store's own directory, and is exempt from auto-collect. Sending
+  while it answers is `chat-busy` (409): never steer. The
+  transcript is in memory, rebuilt from the session log after a restart when `sessionQuery`
+  exists; rebuilt traces say what was asked, not what came back. Three routes (`GET /chat`,
+  `POST /chat/send`, `POST /chat/reset` — one verb per path, as the Host registers), and the
+  composer carries the IME guard the add form still lacks.
 - **Checked against DSH 0.2.1-rc.3.** It adds More menus (browse other plugins, create a plugin) to
   the left sidebar, the conversation view tabs and the right-sidebar guide; fixes New Session losing
   an unsent draft; and changes how the DeepSeek API-key adapter refreshes its model list. None of it

@@ -7,6 +7,7 @@ import test from 'node:test'
 import { createService } from '../lib/service.js'
 import { createStore } from '../lib/store.js'
 import { ROUTE_BASE, createRoutes, isLoopbackRequest, statusForCode } from '../lib/routes.js'
+import { TodoError } from '../lib/errors.js'
 
 /** @returns {object} a response double that records what was written */
 function makeRes() {
@@ -80,6 +81,7 @@ async function harness(options = {}) {
     ...(options.settings === undefined ? {} : { settings: options.settings }),
     ...(options.sessionTail === undefined ? {} : { sessionTail: options.sessionTail }),
     ...(options.modulesInfo === undefined ? {} : { modulesInfo: options.modulesInfo }),
+    ...(options.chat === undefined ? {} : { chat: options.chat }),
   })
   const call = async (suffix, request) => {
     const route = routes.find((candidate) => candidate.path === `${ROUTE_BASE}${suffix}`)
@@ -128,6 +130,9 @@ test('the route surface is exactly the documented one', async () => {
         'assign',
         'bulk',
         'capture',
+        'chat',
+        'chat/reset',
+        'chat/send',
         'create',
         'diagnostics',
         'dirs',
@@ -868,6 +873,10 @@ test('settings refuse the wrong shape instead of coercing it', async () => {
     const badToken = await post({ ingestToken: 123 })
     assert.equal(badToken.statusCode, 400)
 
+    const badChatDir = await post({ chatDir: 7 })
+    assert.equal(badChatDir.statusCode, 400)
+    assert.match(badChatDir.json().error, /chatDir/)
+
     const ok = await post({ autoCollect: true, ingestSources: ['mail'] })
     assert.equal(ok.statusCode, 200)
   } finally {
@@ -1008,5 +1017,78 @@ test('relink re-points a dead attachment without inventing bytes', async () => {
   } finally {
     await env.cleanup()
     await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('the chat routes answer state, refuse politely, and reset', async () => {
+  // A double with the same surface as lib/chat.js's result, so the route layer is
+  // tested against the contract rather than against one implementation of it.
+  let refuseWith = null
+  const chat = {
+    sessionId: () => 'session-butler',
+    watching: () => true,
+    state: () => ({
+      sessionId: 'session-butler',
+      alive: true,
+      running: false,
+      canSend: true,
+      watching: true,
+      messages: [{ kind: 'user', at: 1, text: '把过期的归档' }],
+    }),
+    send: async (text) => {
+      if (refuseWith !== null) throw refuseWith
+      return { sent: true, sessionId: 'session-butler', fresh: false, echoed: text }
+    },
+    reset: () => ({ sessionId: '', alive: false, running: false, canSend: true, watching: true, messages: [] }),
+  }
+  const env = await harness({ chat })
+  const post = (suffix, body) => env.call(suffix, makeReq({ method: 'POST', url: `${ROUTE_BASE}${suffix}`, body: JSON.stringify(body) }))
+  try {
+    const state = await env.call('/chat', makeReq({ url: `${ROUTE_BASE}/chat` }))
+    assert.equal(state.statusCode, 200)
+    assert.equal(state.json().data.chat.messages.length, 1)
+
+    const sent = await post('/chat/send', { text: '清一下' })
+    assert.equal(sent.statusCode, 200)
+    assert.equal(sent.json().data.sent, true)
+
+    const empty = await post('/chat/send', { text: '   ' })
+    assert.equal(empty.statusCode, 400)
+    const wrongShape = await post('/chat/send', { text: 7 })
+    assert.equal(wrongShape.statusCode, 400)
+
+    refuseWith = new TodoError('chat-busy', '管家还在处理上一条')
+    const busy = await post('/chat/send', { text: '再发一条' })
+    assert.equal(busy.statusCode, 409, 'the same text is sendable the moment the turn ends')
+    refuseWith = new TodoError('agents-unavailable', '这个宿主没有 agents 服务')
+    const gone = await post('/chat/send', { text: '还有吗' })
+    assert.equal(gone.statusCode, 502)
+    refuseWith = null
+
+    const reset = await post('/chat/reset', {})
+    assert.equal(reset.statusCode, 200)
+    assert.equal(reset.json().data.chat.sessionId, '')
+  } finally {
+    await env.cleanup()
+  }
+})
+
+test('a missing butler still answers, with an empty room', async () => {
+  const env = await harness({})
+  try {
+    const state = await env.call('/chat', makeReq({ url: `${ROUTE_BASE}/chat` }))
+    assert.equal(state.statusCode, 200)
+    assert.deepEqual(state.json().data.chat, {
+      sessionId: '',
+      alive: false,
+      running: false,
+      canSend: false,
+      watching: false,
+      messages: [],
+    })
+    const send = await env.call('/chat/send', makeReq({ method: 'POST', url: `${ROUTE_BASE}/chat/send`, body: JSON.stringify({ text: '有人吗' }) }))
+    assert.equal(send.statusCode, 502)
+  } finally {
+    await env.cleanup()
   }
 })

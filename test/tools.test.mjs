@@ -407,3 +407,45 @@ test('the guidance section follows the tool groups', async () => {
   assert.doesNotMatch(guidanceFor('core'), /global_todo_capture/, 'do not tell the model to call a tool that is off')
   assert.match(guidanceFor('core'), /global_todo_add/)
 })
+
+test('the wrapper traces every call with its origin, and survives a throwing recorder', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'gt-tools-trace-'))
+  try {
+    const store = createStore({ file: path.join(dir, 'todos.json') })
+    const service = createService({ store, config: { requireExistingFiles: false } })
+    const calls = []
+    const tools = createTools(service, {
+      trace: (call) => {
+        calls.push(call)
+      },
+    })
+    const byName = new Map(tools.map((tool) => [tool.name, tool]))
+    const exec = { agent: { id: 'session-butler', session: { header: { cwd: '/home/me' } } } }
+    const created = await byName.get('global_todo_add').execute({ title: '对齐版本号' }, exec)
+    assert.equal(created.ok, true)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].name, 'global_todo_add')
+    assert.deepEqual(calls[0].origin, { dir: '/home/me', sessionId: 'session-butler' })
+    assert.equal(calls[0].value.todo.title, '对齐版本号')
+
+    // A failing call is traced too — the butler's line names what failed.
+    const failed = await byName.get('global_todo_get').execute({ id: 't-missing' }, exec)
+    assert.equal(failed.ok, false)
+    assert.equal(calls.length, 2)
+    assert.equal(calls[1].value.ok, false)
+
+    // A recorder that throws must not cost the tool call its result.
+    const hostile = createTools(service, {
+      trace: () => {
+        throw new Error('recorder exploded')
+      },
+    })
+    const survived = await hostile
+      .find((tool) => tool.name === 'global_todo_add')
+      .execute({ title: '还是能写进去' }, exec)
+    assert.equal(survived.ok, true)
+    assert.equal(survived.todo.title, '还是能写进去')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

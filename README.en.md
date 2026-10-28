@@ -289,6 +289,25 @@ Your list is not touched by install or uninstall: it lives outside the plugin, a
   restores it verbatim: same id, same creation time, same attachments.
 - **Keyboard** — `/` focuses search, `n` focuses the new-todo field while the add form is
   open, `Esc` collapses the open detail. Row actions appear on hover or keyboard focus.
+- **Todo butler (chat in the panel)** — a permanent split: the list keeps the top of the
+  panel, the butler's conversation holds the bottom, and neither collapses. Talk to one
+  dedicated agent session in plain language and let it edit the list for you ("archive the
+  overdue ones", "merge these three"); when it edits, the list above refreshes itself. The session is
+  persistent (it remembers what you asked before), with a "clear & restart" that keeps the old
+  conversation in the sidebar and an "open in the main window" affordance. The butler mounts the
+  plugin's own **empty preset** — **only the ten `global_todo_*` tools, no shell or file tools**
+  (the Host's own `minimal` preset ships a shell, so it is not used) — with the home directory as
+  its cwd (`chatDir` in settings can change it, never to the store's own directory). Sending
+  while it is still answering is refused (`chat-busy`): interrupting an edit in progress is
+  worse than waiting a moment. Once the butler has heard its first line, the unfolded
+  conversation **reuses the Host's own conversation component** (the same embed channel the
+  subagent sidebar chat uses): streaming, the real composer — model picker included, so you can
+  give the butler its own model right there — and native tool cards, identical to the main
+  window. A Host without that factory (a lean composition, or a release that renamed it) falls
+  back to this plugin's hand-rolled room; the chat never breaks. **Model**: the butler uses the
+  Host's **global default model** (the one saved whenever you pick a model in any conversation).
+  It follows your latest default after each dsh restart; changing the default while the session
+  stays loaded takes effect on the next restart, not mid-turn.
 - **Phone / narrow screens** — the panel switches on its own **measured width**: at 600px or
   less it becomes a touch layout. Controls and inputs are 44px tall, the filter chips scroll
   sideways instead of losing their tail, the inline hand-off collapses to its icon (the menu
@@ -449,6 +468,9 @@ fence when that service is present, and by a strict loopback check otherwise.
 | GET | `/api/global-todo/export` | — (the store's own JSON document; `?format=md` gives a Markdown task list) |
 | POST | `/api/global-todo/import` | `{ doc, mode?: replace\|merge, dryRun? }` — `replace` is an exact round trip, `merge` updates by id and appends (what the panel sends); `dryRun` returns `wouldCreate` / `wouldUpdate` and writes nothing |
 | POST | `/api/global-todo/reminders/ack` | `{ ids }` — stop listing these passed deadlines as due |
+| GET | `/api/global-todo/chat` | — (the butler's state: `sessionId` / `running` / `canSend` / the transcript `messages[]`; polled by the panel, never throws) |
+| POST | `/api/global-todo/chat/send` | `{ text }` — say a line to the butler; 409 `chat-busy` while it is still answering |
+| POST | `/api/global-todo/chat/reset` | — clear & restart: forget the current butler session and empty the transcript; **the old session stays** (the application owns it) |
 | POST | `/api/global-todo/note` | `{ id, text }` — append a progress note |
 | POST | `/api/global-todo/capture` | `{ sessionId? }` — ask the current conversation to collect its follow-ups |
 | POST | `/api/global-todo/bulk` | `{ ids, status?, addTags?, removeTags? }` — one change across a selection; a stale id lands in `unmatched` instead of failing the batch |

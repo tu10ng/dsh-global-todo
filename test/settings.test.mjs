@@ -37,6 +37,17 @@ test('the exempt workspace list is repaired rather than trusted', () => {
   assert.deepEqual(normalizeSettings({}).exemptWorkspaces, [])
 })
 
+test('the butler working directory is empty or one absolute path, nothing else', () => {
+  // The butler edits todos through the tools, so the directory only matters as where a
+  // stray file tool would land. A relative path would resolve differently on the next
+  // host start — the exact quiet drift a settings file must not encode.
+  assert.equal(normalizeSettings({}).chatDir, '')
+  assert.equal(normalizeSettings({ chatDir: 'relative/path' }).chatDir, '')
+  assert.equal(normalizeSettings({ chatDir: 7 }).chatDir, '')
+  assert.equal(normalizeSettings({ chatDir: '/home/me/notes/' }).chatDir, '/home/me/notes')
+  assert.equal(normalizeSettings({ chatDir: 'C:\\Users\\me\\notes\\\\' }).chatDir, 'C:\\Users\\me\\notes')
+})
+
 test('the cooldown bookkeeping keeps the newest sessions and drops junk', () => {
   const asked = { junk: 'nope', '': 5, 'session-old': 1, 'session-new': 100 }
   for (let index = 0; index < 80; index += 1) asked[`session-${index}`] = index

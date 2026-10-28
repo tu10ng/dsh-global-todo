@@ -335,6 +335,29 @@ test('apply registers the dictionary, the stylesheet and both slots', () => {
   assert.equal(sidebar.options.label(), '待办')
 })
 
+test('the embedded butler conversation is registered as a session-scoped child', () => {
+  const { registered } = mountPlugin(reactStub)
+  const main = registered.get('main')
+  // Declaring the child is what mints the entry's SessionProvider/renderSlot
+  // standard props and what creates the spec the child's own registration waits
+  // for — the subagent sidebar chat's exact shape.
+  assert.deepEqual(main.options.children, { 'global-todo.chat.conversation': { kind: 'single', scope: 'session' } })
+  const child = registered.get('global-todo.chat.conversation')
+  assert.ok(child !== undefined, 'the child slot must be registered under its own name')
+  assert.equal(typeof child.component, 'function')
+})
+
+test('the embed pins the host factory by name, and the wrapper keeps the flex contract', () => {
+  // A renamed factory or slot fails *silently* into the hand-rolled fallback, so
+  // the names are pinned here: drift must fail a test, not a chat.
+  assert.match(source, /'conversation\.content'/, 'the factory this embed renders')
+  assert.match(source, /renderSlot\('conversation\.session', \{ view: 'chat' \}\)/, 'the pinned chat view')
+  assert.match(source, /source: 'globalTodoChat'/, 'the retain source')
+  assert.match(source, /variant: 'embedded'/, 'the embedded variant')
+  assert.match(source, /\.gt-chat-embed\s*\{[^}]*min-width:\s*0/, 'the wrapper must be shrinkable')
+  assert.match(source, /\.gt-chat-embed\s*\{[^}]*display:\s*flex/, 'the wrapper must be the flex child the factory expects')
+})
+
 test('the main panel mounts and runs its effects against method-only services', () => {
   // Regression: `ctx.locale.subscribe` touches `this.listeners`, so extracting
   // it into a local variable threw inside an effect. The shell retires a
@@ -471,7 +494,9 @@ test('every route the client calls exists on the host', async () => {
       version: 'test',
     }).map((route) => route.path.replace(`${ROUTE_BASE}/`, '')),
   )
-  const called = new Set([...source.matchAll(/call\(\s*'([a-z]+)'/g)].map((match) => match[1]))
+  // Slashes included since `chat/send`: the pattern used to stop at the first
+  // non-letter and silently skip every sub-path call from its cross-check.
+  const called = new Set([...source.matchAll(/call\(\s*'([a-z/-]+)'/g)].map((match) => match[1]))
   assert.ok(called.size >= 6, 'the panel calls the API')
   for (const suffix of called) {
     assert.ok(hostPaths.has(suffix), `client calls /${suffix} but the host does not serve it`)

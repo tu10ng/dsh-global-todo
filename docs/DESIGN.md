@@ -765,6 +765,59 @@ exactly that one thing (`done` / `cancelled` → `open`), puts the reason in the
 and refuses an item that was never finished. One obvious entry point beats a capability
 buried inside the tool whose name says the opposite.
 
+## The butler: a chat whose hands are the tools
+
+The panel's chat bar is a door; `lib/chat.js` is the room. One persistent session, created
+through `ctx.root` like a hand-off (the application owns it — disabling this plugin must not
+drop a conversation the person is having), reused for every line so the butler remembers what
+it was asked. The design lines worth keeping:
+
+- **Never steer.** A second line while the butler is answering is refused with `chat-busy`
+  (409, not 503: the same text is sendable the moment the turn ends). Interrupting the turn
+  that is making the edits the person asked for is the one failure worth structuring against.
+- **The preset is a safety property.** The butler mounts this plugin's own preset — an empty
+  plugin list — because the Host's `minimal` turned out to carry a persistent shell: everything
+  the butler needs is the ten todo tools, which the Host registers globally, and a shell in the
+  hands of "the thing that edits my list" is exactly the blast radius this feature must not
+  have. When the registry refuses the registration the session is created with no preset at
+  all (documented degraded) — the fallback chain ends at "no preset", never at "more tools".
+  Its cwd defaults to the home directory and can never be configured to the store's own
+  directory — a file tool aimed at `todos.json` would bypass the very write lock this plugin
+  exists to enforce.
+- **One source of truth per transcript entry.** User lines come back as `user/message` events
+  (the local echo exists only for a Host that cannot deliver events), and tool traces are
+  recorded in the wrapper every tool call already passes through — the event feed's `tool/call`
+  carries no result, and a trace without "did it work" is half the story. Nothing is pushed
+  from both doors, or the transcript doubles.
+- **The preamble is transport, not transcript.** The role instructions ride the first line of
+  a session (and the first line after a lost transcript), and are stripped again when the
+  notice echoes back. A session this plugin no longer has history for still gets a butler
+  that knows its rules; a person reading the room never sees the boilerplate.
+- **Backfill is honest about being rebuilt.** After a Host restart the transcript is rebuilt
+  from the session log through `sessionQuery` when present; rebuilt tool lines degrade to
+  what the arguments say (no `#seq`, no ok/fail) rather than pretending to the fidelity of a
+  live trace. No query service: the room starts empty and the session keeps its history
+  regardless — an empty room with a working butler beats a chat that refuses to open.
+- **The butler is exempt from auto-collect.** Its session goes quiet exactly when it is
+  between turns, which is what the collector reads as "worth asking" — without the exemption
+  the question would land in the chat as a line nobody typed.
+- **The room is the Host's own conversation, where the Host offers it.** The panel is a
+  permanent split — list above, butler dock below, neither collapses — and once the butler
+  has heard one line, the dock renders the Host's `conversation.content` factory
+  (`variant: 'embedded'`) through the slots platform — the same channel the subagent sidebar
+  chat uses: streaming, the real composer, native tool cards. The hand-rolled room stays as
+  the fallback, exactly like the directory picker's manual fallback, because a factory name is
+  a de-facto API with no version promise and a chat that silently degrades beats a chat that
+  breaks. The embed takes over only after a first line exists: the first message must travel
+  this plugin's own route, where the preamble rides — a session born from the embedded
+  composer would be a session this plugin never armed.
+- **Butler lines are real user messages, and the trackers must ignore them anyway.** The
+  embedded composer sends through `session.prompt`, so those lines carry `source.kind 'user'` —
+  the exact signal the recent-conversation tracker follows. The butler session is exempted in
+  that watcher too: without the guard, every line typed to the butler would drag the dispatch
+  default into the butler, the same self-steering the plugin-injection filter exists to
+  prevent.
+
 ## Optional services
 
 | Service | Needed for | Without it |
